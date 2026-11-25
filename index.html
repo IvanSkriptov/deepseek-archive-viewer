@@ -3,7 +3,7 @@
   <head>
     <meta name="ds-standalone" content="1" />
     <meta name="ds-default-lang" content="en" />
-    <meta name="ds-build-id" content="1795610772437" />
+    <meta name="ds-build-id" content="1795620222990" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DeepSeek Archive Viewer</title>
@@ -98,6 +98,7 @@
     --text-xl--line-height: calc(1.75 / 1.25);
     --text-2xl: 1.5rem;
     --text-2xl--line-height: calc(2 / 1.5);
+    --font-weight-normal: 400;
     --font-weight-medium: 500;
     --font-weight-semibold: 600;
     --tracking-tight: -.025em;
@@ -1439,6 +1440,11 @@
   .font-medium {
     --tw-font-weight: var(--font-weight-medium);
     font-weight: var(--font-weight-medium);
+  }
+
+  .font-normal {
+    --tw-font-weight: var(--font-weight-normal);
+    font-weight: var(--font-weight-normal);
   }
 
   .font-semibold {
@@ -16105,7 +16111,7 @@ mark.ds-search-hit.ds-search-hit-active {
 			loadingArchive: "Чтение индекса архива...",
 			loadingChat: "Загрузка переписки...",
 			chatLoadError: "Не удалось прочитать файл переписки из архива.",
-			archiveErrorInvalid: "Не найдена структура экспорта DeepSeek (chat_session_index.json или chat_sessions). Проверьте выбранный файл или папку.",
+			archiveErrorInvalid: "Не найдена структура экспорта DeepSeek (chat_session_index.json, chat_sessions, conversations.json или chat.csv / coder.csv). Проверьте выбранный файл или папку.",
 			selectChatPrompt: "Выберите диалог в списке слева",
 			selectChatHint: "Все ваши переписки, ветки ответов, формулы и вложения отображаются локально.",
 			searchInChatTitle: "Поиск в текущем диалоге",
@@ -16189,7 +16195,7 @@ mark.ds-search-hit.ds-search-hit-active {
 			loadingArchive: "Reading archive index...",
 			loadingChat: "Loading conversation...",
 			chatLoadError: "Could not read conversation file from the archive.",
-			archiveErrorInvalid: "DeepSeek export structure not found (chat_session_index.json or chat_sessions). Please verify the selected archive or folder.",
+			archiveErrorInvalid: "DeepSeek export structure not found (chat_session_index.json, chat_sessions, conversations.json, or chat.csv / coder.csv). Please verify the selected archive or folder.",
 			selectChatPrompt: "Select a conversation from the sidebar",
 			selectChatHint: "All conversations, branches, formulas, and attachments stay offline on your device.",
 			searchInChatTitle: "Search in current chat",
@@ -16273,7 +16279,7 @@ mark.ds-search-hit.ds-search-hit-active {
 			loadingArchive: "正在读取归档索引...",
 			loadingChat: "正在加载对话内容...",
 			chatLoadError: "无法从归档中读取该对话文件。",
-			archiveErrorInvalid: "未找到 DeepSeek 导出数据结构（chat_session_index.json 或 chat_sessions）。请检查所选压缩包或文件夹。",
+			archiveErrorInvalid: "未找到 DeepSeek 导出数据结构（chat_session_index.json、chat_sessions、conversations.json 或 chat.csv / coder.csv）。请检查所选压缩包或文件夹。",
 			selectChatPrompt: "请从左侧列表选择一个对话",
 			selectChatHint: "您的所有对话、分支回复、公式和附件均仅在本地展示。",
 			searchInChatTitle: "在当前对话中搜索",
@@ -96195,7 +96201,10 @@ Please report this to https://github.com/markedjs/marked.`, e) {
 								className: "shrink-0"
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 								className: "truncate text-[14px] font-semibold tracking-tight text-[#111827]",
-								children: t.appTitle
+								children: lang === "zh" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: ["DeepSeek ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "font-normal",
+									children: "归档"
+								})] }) : t.appTitle
 							})]
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 							className: "flex items-center shrink-0",
@@ -99600,7 +99609,9 @@ Please report this to https://github.com/markedjs/marked.`, e) {
 			"chat_session_index.json",
 			"manifest.json",
 			"user.json",
-			"conversations.json"
+			"conversations.json",
+			"chat.csv",
+			"coder.csv"
 		]) {
 			if (paths.find((p) => p === marker)) return "";
 			const nested = paths.find((p) => p.endsWith("/" + marker));
@@ -99690,6 +99701,201 @@ Please report this to https://github.com/markedjs/marked.`, e) {
 			messages
 		};
 	}
+	function parseCsvRows(rawText) {
+		const text = rawText.charCodeAt(0) === 65279 ? rawText.slice(1) : rawText;
+		const rows = [];
+		let row = [];
+		let field = "";
+		let inQuotes = false;
+		for (let i = 0; i < text.length; i += 1) {
+			const ch = text[i];
+			if (inQuotes) {
+				if (ch === "\"") {
+					if (text[i + 1] === "\"") {
+						field += "\"";
+						i += 1;
+					} else inQuotes = false;
+				} else field += ch;
+				continue;
+			}
+			if (ch === "\"") {
+				if (field.length === 0) inQuotes = true;
+				else field += ch;
+			} else if (ch === ",") {
+				row.push(field);
+				field = "";
+			} else if (ch === "\r" || ch === "\n") {
+				if (ch === "\r" && text[i + 1] === "\n") i += 1;
+				row.push(field);
+				field = "";
+				if (row.length > 1 || row.length === 1 && row[0] !== "") rows.push(row);
+				row = [];
+			} else field += ch;
+		}
+		if (field.length > 0 || row.length > 0) {
+			row.push(field);
+			if (row.length > 1 || row.length === 1 && row[0] !== "") rows.push(row);
+		}
+		return rows;
+	}
+	function normalizeCsvTimestamp(raw) {
+		const trimmed = (raw || "").trim();
+		if (!trimmed) return {
+			iso: "",
+			ms: 0
+		};
+		const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:?\d{2})?$/);
+		if (match) {
+			const [, datePart, timePart, fracPart, tzPart] = match;
+			const candidate = `${datePart}T${timePart}${fracPart ? `.${(fracPart + "000").slice(0, 3)}` : ""}${tzPart || "Z"}`;
+			const parsed = Date.parse(candidate);
+			if (!Number.isNaN(parsed)) return {
+				iso: new Date(parsed).toISOString(),
+				ms: parsed
+			};
+		}
+		const fallbackMs = Date.parse(trimmed);
+		if (!Number.isNaN(fallbackMs)) return {
+			iso: new Date(fallbackMs).toISOString(),
+			ms: fallbackMs
+		};
+		return {
+			iso: "",
+			ms: 0
+		};
+	}
+	function buildSessionsFromLegacyCsv(csvText, sourceTag) {
+		const rows = parseCsvRows(csvText);
+		if (rows.length === 0) return {
+			sessions: [],
+			validHeader: false
+		};
+		const header = rows[0].map((col) => col.trim().toLowerCase());
+		const idIdx = header.indexOf("id");
+		const timeIdx = header.findIndex((c) => c === "time" || c === "created_at" || c === "timestamp");
+		const roleIdx = header.indexOf("role");
+		const contentIdx = header.indexOf("content");
+		if (roleIdx === -1 || contentIdx === -1) return {
+			sessions: [],
+			validHeader: false
+		};
+		const parsedRows = [];
+		for (let i = 1; i < rows.length; i += 1) {
+			const cols = rows[i];
+			const roleRaw = (cols[roleIdx] || "").trim().toLowerCase();
+			const content = cols[contentIdx] ?? "";
+			if (!roleRaw && !content) continue;
+			const idVal = idIdx >= 0 ? Number((cols[idIdx] || "").trim()) : NaN;
+			const { iso, ms } = timeIdx >= 0 ? normalizeCsvTimestamp(cols[timeIdx] || "") : {
+				iso: "",
+				ms: 0
+			};
+			parsedRows.push({
+				numericId: Number.isFinite(idVal) ? idVal : i,
+				timeIso: iso,
+				timeMs: ms,
+				role: roleRaw === "user" ? "USER" : "ASSISTANT",
+				content,
+				order: i
+			});
+		}
+		if (parsedRows.length === 0) return {
+			sessions: [],
+			validHeader: true
+		};
+		parsedRows.sort((a, b) => {
+			if (a.timeMs && b.timeMs && a.timeMs !== b.timeMs) return a.timeMs - b.timeMs;
+			if (a.numericId !== b.numericId) return a.numericId - b.numericId;
+			return a.order - b.order;
+		});
+		const SESSION_GAP_MS = 72e5;
+		const MAX_MESSAGES_PER_GROUP = 200;
+		const groups = [];
+		let currentGroup = [];
+		for (const item of parsedRows) {
+			const prev = currentGroup[currentGroup.length - 1];
+			const gapExceeded = prev && item.timeMs > 0 && prev.timeMs > 0 && item.timeMs - prev.timeMs > SESSION_GAP_MS;
+			if (currentGroup.length > 0 && (gapExceeded || currentGroup.length >= MAX_MESSAGES_PER_GROUP)) {
+				groups.push(currentGroup);
+				currentGroup = [];
+			}
+			currentGroup.push(item);
+		}
+		if (currentGroup.length > 0) groups.push(currentGroup);
+		const prefixLabel = sourceTag === "coder" ? "[Coder]" : "[Chat]";
+		return {
+			sessions: groups.map((group, idx) => {
+				const usedIds = /* @__PURE__ */ new Set();
+				let seq = 1;
+				let prevMsgId = null;
+				const messages = group.map((row) => {
+					let msgId = row.numericId;
+					if (!Number.isFinite(msgId) || usedIds.has(msgId)) {
+						while (usedIds.has(seq)) seq += 1;
+						msgId = seq++;
+					}
+					usedIds.add(msgId);
+					const msg = {
+						id: msgId,
+						parent_id: prevMsgId,
+						role: row.role,
+						inserted_at: row.timeIso || void 0,
+						fragments: [{
+							type: row.role === "USER" ? "REQUEST" : "RESPONSE",
+							content: row.content
+						}]
+					};
+					prevMsgId = msgId;
+					return msg;
+				});
+				const titleSource = (group.find((r) => r.role === "USER" && r.content.trim().length > 0)?.content || group[0]?.content || "").replace(/\s+/g, " ").trim();
+				const snippet = titleSource.length > 48 ? `${titleSource.slice(0, 48).trimEnd()}…` : titleSource;
+				const firstTime = group[0]?.timeIso || "";
+				const lastTime = group[group.length - 1]?.timeIso || firstTime;
+				const dateFallback = firstTime ? firstTime.slice(0, 10) : `#${idx + 1}`;
+				return {
+					id: `legacy-csv-${sourceTag}-${idx + 1}`,
+					title: snippet ? `${prefixLabel} ${snippet}` : `${prefixLabel} ${dateFallback}`,
+					pinned: false,
+					current_message_id: messages[messages.length - 1]?.id,
+					inserted_at: firstTime,
+					updated_at: lastTime,
+					messages
+				};
+			}),
+			validHeader: true
+		};
+	}
+	async function tryLoadLegacyCsvFallback(readText, legacySessions) {
+		const candidates = [{
+			path: "chat.csv",
+			tag: "chat"
+		}, {
+			path: "coder.csv",
+			tag: "coder"
+		}];
+		let foundAnyValidCsv = false;
+		const entries = [];
+		for (const { path, tag } of candidates) {
+			const text = await readText(path);
+			if (text === null) continue;
+			const { sessions, validHeader } = buildSessionsFromLegacyCsv(text, tag);
+			if (!validHeader) continue;
+			foundAnyValidCsv = true;
+			for (const s of sessions) {
+				legacySessions.set(s.id, s);
+				entries.push({
+					id: s.id,
+					title: s.title,
+					pinned: false,
+					message_count: s.messages.length,
+					inserted_at: s.inserted_at || "",
+					updated_at: s.updated_at || s.inserted_at || ""
+				});
+			}
+		}
+		return foundAnyValidCsv ? entries : null;
+	}
 	async function loadArchiveFromZip(file) {
 		const zip = await import_jszip_min.default.loadAsync(file);
 		const allEntries = /* @__PURE__ */ new Map();
@@ -99761,6 +99967,11 @@ Please report this to https://github.com/markedjs/marked.`, e) {
 				}
 			}
 		}
+		if (!indexEntries) indexEntries = await tryLoadLegacyCsvFallback(async (csvPath) => {
+			const entry = allEntries.get(csvPath);
+			if (!entry) return null;
+			return entry.async("string");
+		}, legacySessions);
 		if (!indexEntries || !Array.isArray(indexEntries)) throw new Error("INVALID_DEEPSEEK_ARCHIVE");
 		const blobUrlCache = /* @__PURE__ */ new Map();
 		const blobCache = /* @__PURE__ */ new Map();
@@ -99879,6 +100090,10 @@ Please report this to https://github.com/markedjs/marked.`, e) {
 				}
 			}
 		}
+		if (!indexEntries) indexEntries = await tryLoadLegacyCsvFallback(async (csvPath) => {
+			const f = fileMap.get(csvPath);
+			return f ? f.text() : null;
+		}, legacySessions);
 		if (!indexEntries || !Array.isArray(indexEntries)) throw new Error("INVALID_DEEPSEEK_ARCHIVE");
 		const blobUrlCache = /* @__PURE__ */ new Map();
 		const findLocalFile = (exportPath, sessionId, fileMeta) => {
@@ -100084,6 +100299,17 @@ Please report this to https://github.com/markedjs/marked.`, e) {
 						});
 					}
 				}
+			}
+		}
+		if (!indexEntries) {
+			const csvEntries = await tryLoadLegacyCsvFallback(async (csvPath) => {
+				const fh = handleMap.get(csvPath);
+				if (!fh) return null;
+				return (await fh.getFile()).text();
+			}, legacySessions);
+			if (csvEntries) {
+				isLegacySingleFile = true;
+				indexEntries = csvEntries;
 			}
 		}
 		if (!indexEntries || !Array.isArray(indexEntries)) throw new Error("INVALID_DEEPSEEK_ARCHIVE");
@@ -101636,7 +101862,10 @@ Please report this to https://github.com/markedjs/marked.`, e) {
 											className: "group/title inline-flex max-w-full items-center gap-1.5",
 											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
 												className: "truncate text-[16px] font-semibold leading-snug text-[#111827]",
-												children: activeTitle
+												children: !activeSession && !activeSessionMeta && lang === "zh" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: ["DeepSeek ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "font-normal",
+													children: "归档"
+												})] }) : activeTitle
 											}), canManageSessions && activeSessionMeta && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 												type: "button",
 												onClick: startHeaderRename,
